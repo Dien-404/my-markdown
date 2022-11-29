@@ -1,67 +1,55 @@
-// 行内样式对象
-function InlineStyle({
-    italic = false,
-    bold = false,
-    code = false,
-    content = undefined,
-}) {
-    return {
-        italic,
-        bold,
-        code,
-        content,
-    };
-}
+import { InlineStyle, Title, Code, Asset, List, Parallel } from "./myObject";
 
-const reconcileInlineStyle = (nodeContent) => {
-    const res = [];
+// 渲染行内块标签对象
+const renderInlineNode = (innerText) => {
+    const innerNode = [];
     // 解决行内代码
     const handleCode = (str, italic = false, bold = false) => {
-        const res = [];
+        const myCode = [];
         if (!italic && !bold) {
             while (str.match(/`.*?`/)) {
                 let { 0: match, index } = str.match(/`.*?`/);
-                res.push(
+                myCode.push(
                     str.slice(0, index),
-                    InlineStyle({
+                    new InlineStyle({
                         italic,
                         bold,
                         code: true,
-                        content: match.slice(1, match.length - 1),
+                        value: match.slice(1, match.length - 1),
                     })
                 );
                 str = str.slice(index + match.length);
             }
-            res.push(str);
+            myCode.push(str);
         } else {
             while (str.match(/`.*?`/)) {
                 let { 0: match, index } = str.match(/`.*?`/);
-                res.push(
-                    InlineStyle({
+                myCode.push(
+                    new InlineStyle({
                         italic,
                         bold,
                         code: false,
-                        content: str.slice(0, index),
+                        value: str.slice(0, index),
                     }),
-                    InlineStyle({
+                    new InlineStyle({
                         italic,
                         bold,
                         code: true,
-                        content: match.slice(1, match.length - 1),
+                        value: match.slice(1, match.length - 1),
                     })
                 );
                 str = str.slice(index + match.length);
             }
-            res.push(
-                InlineStyle({
+            myCode.push(
+                new InlineStyle({
                     italic,
                     bold,
                     code: false,
-                    content: str,
+                    value: str,
                 })
             );
         }
-        return res;
+        return myCode;
     };
 
     const handleItalicOrBold = (str) => {
@@ -69,157 +57,174 @@ const reconcileInlineStyle = (nodeContent) => {
         let italic = false,
             bold = false,
             code = false,
-            content;
+            value;
         if (
             str.slice(0, 3) === "***" &&
             str.slice(0, 3) === str.slice(str.length - 3, str.length)
         ) {
             italic = true;
             bold = true;
-            content = str.slice(3, str.length - 3);
+            value = str.slice(3, str.length - 3);
         } else if (
             str.slice(0, 2) === "**" &&
             str.slice(0, 2) === str.slice(str.length - 2, str.length)
         ) {
             bold = true;
-            content = str.slice(2, str.length - 2);
+            value = str.slice(2, str.length - 2);
         } else if (str[0] === "*" && str[0] === str[str.length - 1]) {
             italic = true;
-            content = str.slice(1, str.length - 1);
+            value = str.slice(1, str.length - 1);
         }
 
         if (str.match(/`.*?`/)) {
             // 粗斜体内存在代码块
-            return handleCode(content, italic, bold);
+            return handleCode(value, italic, bold);
         } else {
             // 粗斜体内不存在代码块
             // 粗斜体
             if (italic && bold) {
-                return InlineStyle({
+                return new InlineStyle({
                     italic,
                     bold,
                     code,
-                    content,
+                    value,
                 });
             }
             // 粗体
             if (bold && !italic) {
-                return InlineStyle({
+                return new InlineStyle({
                     italic,
                     bold,
                     code,
-                    content,
+                    value,
                 });
             }
             // 斜体
             if (italic && !bold) {
-                return InlineStyle({
+                return new InlineStyle({
                     italic,
                     bold,
                     code,
-                    content,
+                    value,
                 });
             }
         }
     };
 
-    while (
-        nodeContent.match(/\*{1,3}.*?\*{1,3}/) ||
-        nodeContent.match(/`.*?`/)
-    ) {
+    while (innerText.match(/\*{1,3}.*?\*{1,3}/) || innerText.match(/`.*?`/)) {
         let str, // 处理行内代码
             matchItem, // 处理当前粗斜体匹配对象 -> 匹配的字符串
             matchIndex; // 处理当前粗斜体匹配对象 -> 匹配的下标
-        if (nodeContent.match(/\*{1,3}.*?\*{1,3}/)) {
+        if (innerText.match(/\*{1,3}.*?\*{1,3}/)) {
             // 存在 加粗、斜体情况
-            let { 0: match, index } = nodeContent.match(/\*{1,3}.*?\*{1,3}/);
+            let { 0: match, index } = innerText.match(/\*{1,3}.*?\*{1,3}/);
             matchItem = match;
             matchIndex = index;
             // 匹配字符串前的字符串出现的代码块
-            str = nodeContent.slice(0, matchIndex);
+            str = innerText.slice(0, matchIndex);
         } else {
             // 不存在 加粗、斜体情况
-            str = nodeContent; // 只需考虑代码块
-            nodeContent = "";
+            str = innerText; // 只需考虑代码块
+            innerText = "";
         }
         // 优先处理代码块
         // 匹配不存在加粗、斜体样式中的代码块
         if (str.match(/`.*?`/)) {
-            res.push(handleCode(str));
+            innerNode.push(handleCode(str));
+        } else if (str === "") {
         } else {
-            res.push(str);
+            innerNode.push(str);
         }
         // 解决粗斜体以及判断是否合规
         if (matchItem) {
             // 存在粗斜体
-            res.push(handleItalicOrBold(matchItem));
-            nodeContent = nodeContent.slice(matchIndex + matchItem.length);
+            innerNode.push(handleItalicOrBold(matchItem));
+            innerText = innerText.slice(matchIndex + matchItem.length);
         } else {
             break;
         }
     }
-    res.push(nodeContent);
-    return res.flat(Infinity);
+    if (innerText !== "") {
+        innerNode.push(innerText);
+    }
+    return innerNode.flat(Infinity);
 };
 
-const reconcileNode = (fileLineArray) => {
-    const res = [];
-    let allLength = fileLineArray.length;
-    for (let i = 0; i < allLength; i++) {
-        let str = fileLineArray[i];
+// 渲染块级标签对象
+const renderBlockNode = (inputText) => {
+    /*
+        输入：
+        inputText：Array数据结构
+            1.从 textarea 标签中获取，根据 换行符"\n" 预处理分割
+            2.从文件读取，读取时根据换行符预处理
+        
+        输出：
+        myNode：Array数据结构，包含以下对象，具体对象数据查看 myObject.js 文件
+            1.标题
+            2.列表
+            3.代码块
+            4.图片资源
+            5.段落
+            6.尚未更新
+    */
+    const myNode = []; // 返回结果
+    for (let i = 0; i < inputText.length; i++) {
+        // 获取第 i 行字符串
+        let str = inputText[i];
+
         // 一级标题
         if (str.match(/^#{1}\s/)) {
-            const firstLevelTitle = {
-                type: "title",
-                titleType: "first",
-                content: reconcileInlineStyle(str.slice(2)),
-            };
-            res.push(firstLevelTitle);
+            myNode.push(
+                new Title({
+                    titleType: "first",
+                    value: renderInlineNode(str.slice(2)),
+                })
+            );
             continue;
         }
+
         // 二级标题
         if (str.match(/^#{2}\s/)) {
-            const secondLevelTitle = {
-                type: "title",
-                titleType: "second",
-                content: reconcileInlineStyle(str.slice(3)),
-            };
-            res.push(secondLevelTitle);
+            myNode.push(
+                new Title({
+                    titleType: "second",
+                    value: renderInlineNode(str.slice(3)),
+                })
+            );
             continue;
         }
+
         // 三级标题
         if (str.match(/^#{3}\s/)) {
-            const thirdLevelTitle = {
-                type: "title",
-                titleType: "third",
-                content: reconcileInlineStyle(str.slice(4)),
-            };
-            res.push(thirdLevelTitle);
+            myNode.push(
+                new Title({
+                    titleType: "third",
+                    value: renderInlineNode(str.slice(4)),
+                })
+            );
             continue;
         }
+
         // 四级标题及以上
         if (str.match(/^#{4,6}\s/)) {
             let { 0: match } = str.match(/^#{4,6}\s/);
-            const defaultLevelTitle = {
-                type: "title",
-                titleType: "default",
-                content: reconcileInlineStyle(match.length),
-            };
-            res.push(defaultLevelTitle);
+            myNode.push(
+                new Title({
+                    titleType: "default",
+                    value: renderInlineNode(str.slice(match.length)),
+                })
+            );
             continue;
         }
+
         // 代码块
-        if (
-            str.match(/^```/) &&
-            i !== fileLineArray.length - 1 &&
-            str[3] !== "`"
-        ) {
+        if (str.match(/^```/) && i !== inputText.length - 1 && str[3] !== "`") {
             let begin = i;
             // 核实是否为代码块
             let flag = false;
-            while (!fileLineArray[++i].match(/^```/)) {
+            while (!inputText[++i].match(/^```/)) {
                 // 如果只存在 单边```情况时，该```不属于代码块，属于段落
-                if (i >= fileLineArray.length - 1) {
+                if (i >= inputText.length - 1) {
                     flag = true;
                     break;
                 }
@@ -228,80 +233,70 @@ const reconcileNode = (fileLineArray) => {
             if (flag) {
                 i = begin;
             } else {
-                const codeBlock = {
-                    type: "codeBlock",
-                    codeType: str.substring(3),
-                    content: fileLineArray.slice(begin + 1, i),
-                };
-                res.push(codeBlock);
+                myNode.push(
+                    new Code({
+                        codeType: str.substring(3),
+                        value: inputText.slice(begin + 1, i),
+                    })
+                );
                 continue;
             }
         }
-        // 图片资源
+
+        // 资源
+        // 图片，后续可能更新音频
         if (str.match(/^!\[.{0,}\]\(.{0,}\)$/)) {
             let img = str.match(/^!\[.{0,}\]\(.{0,}\)$/)[0];
+            // 获取图片资源注释
             let alt = img.match(/\[.*?\]/)[0];
             alt = alt.substring(1, alt.length - 1);
+
+            // 获取图片资源链接
             let src = img.match(/\(.*?\)$/)[0];
             src = src.substring(1, src.length - 1);
-            const Asset = {
-                type: "asset",
-                assetType: "img",
-                alt,
-                src,
-            };
-            res.push(Asset);
+
+            myNode.push(new Asset({ assetType: "img", alt, src }));
             continue;
         }
         // 无序列表
         if (str.match(/-\s/)) {
-            const listWithNoOrder = {
-                type: "list",
-                listType: false, // false 为无序列表, true 为有序列表
-                content: [],
-            };
+            let value = [];
+
             do {
-                let str = fileLineArray[i];
+                let str = inputText[i];
                 let { index } = str.match(/-\s/);
-                listWithNoOrder.content.push(
-                    reconcileInlineStyle(str.substring(index + 2, str.length))
+                value.push(
+                    renderInlineNode(str.substring(index + 2, str.length))
                 );
-            } while (fileLineArray[++i]?.match(/-\s/));
+            } while (inputText[++i]?.match(/-\s/));
+
             i--; // !important
-            res.push(listWithNoOrder);
+            myNode.push(new List({ listType: false, value }));
             continue;
         }
         // 有序列表
         if (str.match(/\d\.\s/)) {
-            const listWithOrder = {
-                type: "list",
-                listType: true,
-                content: [],
-            };
+            let value = [];
+
             do {
-                let str = fileLineArray[i];
+                let str = inputText[i];
                 let { 0: match, index } = str.match(/\d\.\s/);
-                listWithOrder.content.push(
-                    reconcileInlineStyle(
+                value.push(
+                    renderInlineNode(
                         str.substring(match.length + index, str.length)
                     )
                 );
-            } while (fileLineArray[++i]?.match(/\d\.\s/));
-            i--;
-            res.push(listWithOrder);
+            } while (inputText[++i]?.match(/\d\.\s/));
+
+            i--; // !important
+            myNode.push(new List({ listType: true, value }));
             continue;
         }
-        // 默认情况
-        {
-            const parallel = {
-                type: "parallel",
-                content: reconcileInlineStyle(str),
-            };
-            res.push(parallel);
-            continue;
-        }
+
+        // 默认情况，以上所有情况不触发，则触发此情况
+        myNode.push(new Parallel({ value: renderInlineNode(str) }));
     }
-    return res;
+    return myNode;
 };
 
-export { reconcileNode };
+export { renderBlockNode };
